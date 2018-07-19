@@ -1,0 +1,308 @@
+#!/usr/bin/env python2
+import __builtin__
+
+
+__builtin__.process = 'client'
+
+
+# Temporary hack patch:
+__builtin__.__dict__.update(__import__('pandac.PandaModules', fromlist=['*']).__dict__)
+from direct.extensions_native import HTTPChannel_extensions
+from direct.extensions_native import Mat3_extensions
+from direct.extensions_native import VBase3_extensions
+from direct.extensions_native import VBase4_extensions
+from direct.extensions_native import NodePath_extensions
+
+
+from panda3d.core import loadPrcFile
+
+
+if __debug__:
+    loadPrcFile('config/general.prc')
+    loadPrcFile('config/release/dev.prc')
+
+
+from direct.directnotify.DirectNotifyGlobal import directNotify
+
+
+notify = directNotify.newCategory('ClientStart')
+notify.setInfo(True)
+
+
+from otp.settings.Settings import Settings
+
+
+preferencesFilename = ConfigVariableString(
+    'preferences-filename', 'preferences.json').getValue()
+notify.info('Reading %s...' % preferencesFilename)
+__builtin__.settings = Settings(preferencesFilename)
+if 'fullscreen' not in settings:
+    settings['fullscreen'] = False
+if 'music' not in settings:
+    settings['music'] = True
+if 'sfx' not in settings:
+    settings['sfx'] = True
+if 'musicVol' not in settings:
+    settings['musicVol'] = 1.0
+if 'sfxVol' not in settings:
+    settings['sfxVol'] = 1.0
+if 'loadDisplay' not in settings:
+    settings['loadDisplay'] = 'pandagl'
+if 'toonChatSounds' not in settings:
+    settings['toonChatSounds'] = True
+loadPrcFileData('Settings: res', 'win-size %d %d' % tuple(settings.get('res', (800, 600))))
+loadPrcFileData('Settings: fullscreen', 'fullscreen %s' % settings['fullscreen'])
+loadPrcFileData('Settings: music', 'audio-music-active %s' % settings['music'])
+loadPrcFileData('Settings: sfx', 'audio-sfx-active %s' % settings['sfx'])
+loadPrcFileData('Settings: musicVol', 'audio-master-music-volume %s' % settings['musicVol'])
+loadPrcFileData('Settings: sfxVol', 'audio-master-sfx-volume %s' % settings['sfxVol'])
+loadPrcFileData('Settings: loadDisplay', 'load-display %s' % settings['loadDisplay'])
+loadPrcFileData('Settings: toonChatSounds', 'toon-chat-sounds %s' % settings['toonChatSounds'])
+
+
+import os
+
+from toontown.toonbase.ContentPacksManager import ContentPackError
+from toontown.toonbase.ContentPacksManager import ContentPacksManager
+
+
+contentPacksFilepath = ConfigVariableString(
+    'content-packs-filepath', 'contentpacks/').getValue()
+contentPacksSortFilename = ConfigVariableString(
+    'content-packs-sort-filename', 'sort.yaml').getValue()
+if not os.path.exists(contentPacksFilepath):
+    os.makedirs(contentPacksFilepath)
+__builtin__.ContentPackError = ContentPackError
+__builtin__.contentPacksMgr = ContentPacksManager(
+    filepath=contentPacksFilepath, sortFilename=contentPacksSortFilename)
+contentPacksMgr.applyAll()
+
+
+import time
+import sys
+import random
+import __builtin__
+try:
+    launcher
+except:
+    from toontown.launcher.TTILauncher import TTILauncher
+    launcher = TTILauncher()
+    __builtin__.launcher = launcher
+
+
+notify.info('Starting the game...')
+if launcher.isDummy():
+    http = HTTPClient()
+else:
+    http = launcher.http
+tempLoader = Loader()
+backgroundNode = tempLoader.loadSync(Filename('phase_3/models/gui/loading-background'))
+from direct.gui import DirectGuiGlobals
+from direct.gui.DirectGui import *
+notify.info('Setting the default font...')
+import ToontownGlobals
+DirectGuiGlobals.setDefaultFontFunc(ToontownGlobals.getInterfaceFont)
+launcher.setPandaErrorCode(7)
+import ToonBase
+ToonBase.ToonBase()
+from pandac.PandaModules import *
+if base.win is None:
+    notify.error('Unable to open window; aborting.')
+launcher.setPandaErrorCode(0)
+launcher.setPandaWindowOpen()
+ConfigVariableDouble('decompressor-step-time').setValue(0.01)
+ConfigVariableDouble('extractor-step-time').setValue(0.01)
+backgroundNodePath = aspect2d.attachNewNode(backgroundNode, 0)
+backgroundNodePath.setPos(0.0, 0.0, 0.0)
+backgroundNodePath.setScale(render2d, VBase3(1))
+backgroundNodePath.find('**/fg').hide()
+logo = OnscreenImage(
+    image='phase_3/maps/toontown-logo.png',
+    scale=(1 / (4.0/3.0), 1, 1 / (4.0/3.0)),
+    pos=backgroundNodePath.find('**/fg').getPos())
+logo.setTransparency(TransparencyAttrib.MAlpha)
+logo.setBin('fixed', 20)
+logo.reparentTo(backgroundNodePath)
+backgroundNodePath.find('**/bg').setBin('fixed', 10)
+base.graphicsEngine.renderFrame()
+DirectGuiGlobals.setDefaultRolloverSound(base.loadSfx('phase_3/audio/sfx/GUI_rollover.ogg'))
+DirectGuiGlobals.setDefaultClickSound(base.loadSfx('phase_3/audio/sfx/GUI_create_toon_fwd.ogg'))
+DirectGuiGlobals.setDefaultDialogGeom(loader.loadModel('phase_3/models/gui/dialog_box_gui'))
+import TTLocalizer
+from otp.otpbase import OTPGlobals
+OTPGlobals.setDefaultProductPrefix(TTLocalizer.ProductPrefix)
+if base.musicManagerIsValid:
+    themeList = ('phase_3/audio/bgm/tti_theme.ogg', 'phase_3/audio/bgm/tti_theme_2.ogg')
+    music = base.loadMusic(random.choice(themeList))
+    if music:
+        music.setLoop(1)
+        music.setVolume(0.9)
+        music.play()
+    notify.info('Loading the default GUI sounds...')
+    DirectGuiGlobals.setDefaultRolloverSound(base.loadSfx('phase_3/audio/sfx/GUI_rollover.ogg'))
+    DirectGuiGlobals.setDefaultClickSound(base.loadSfx('phase_3/audio/sfx/GUI_create_toon_fwd.ogg'))
+    import discord
+import asyncio
+from handlers import message_handler
+from handlers import reaction_handler
+from handlers import invasion_handler
+import config
+import time
+import traceback
+from raven import Client as ravenClient
+
+enable_error_reports = False
+if config.sentry_dsn is not '':
+    errorReporter = ravenClient(config.sentry_dsn)
+    enable_error_reports = True
+
+client = discord.Client()
+MessageHandler = message_handler.MessageHandler(client)
+ReactionHandler = reaction_handler.ReactionHandler(client)
+InvasionHandler = invasion_handler.InvasionHandler(client)
+
+@client.event
+async def invtracker():
+    try:
+        await client.wait_until_ready()
+        await InvasionHandler.tracker()
+    except:
+        if enable_error_reports:
+            errorReporter.captureException()
+        print(traceback.format_exc())
+
+@client.event
+async def stracker():
+    try:
+        await client.wait_until_ready()
+        await InvasionHandler.statustracker()
+    except:
+        if enable_error_reports:
+            errorReporter.captureException()
+        print(traceback.format_exc())
+
+@client.event
+async def on_ready():
+    print('Logged in as')
+    print(client.user.name)
+    print(client.user.id)
+    print('------')
+
+@client.event
+async def on_message(message):
+    try:
+        await MessageHandler.on_message(message)
+    except:
+        if enable_error_reports:
+            errorReporter.captureException()
+        print(traceback.format_exc())
+
+@client.event
+async def on_reaction_add(reaction, user):
+    await ReactionHandler.on_reaction_add(reaction, user)
+
+
+def Main():
+    try:
+        client.loop.create_task(invtracker())
+        client.loop.create_task(stracker())
+        client.run(config.discord_token)
+    except:
+        if enable_error_reports:
+            errorReporter.captureException()
+        print(traceback.format_exc())
+        time.sleep(3)
+import atexit
+from direct.directnotify import DirectNotifyGlobal
+from direct.filter.CommonFilters import CommonFilters
+from direct.gui import DirectGuiGlobals
+from direct.gui.DirectGui import *
+from direct.showbase.PythonUtil import *
+from direct.showbase.Transitions import Transitions
+from direct.task import *
+import math
+import os
+from pandac.PandaModules import *
+import random
+import shutil
+from sys import platform
+import sys
+import tempfile
+import time
+
+import ToontownGlobals
+import ToontownLoader
+from otp.otpbase import OTPBase
+from otp.otpbase import OTPGlobals
+from otp.otpbase import OTPLauncherGlobals
+from toontown.launcher import ToontownDownloadWatcher
+from toontown.margins import MarginGlobals
+from toontown.margins.MarginManager import MarginManager
+from toontown.nametag import NametagGlobals
+from toontown.toonbase import TTLocalizer
+from toontown.toonbase import ToontownAccess
+from toontown.toonbase import ToontownBattleGlobals
+from toontown.toontowngui import TTDialog
+
+
+class ToonBase(OTPBase.OTPBase):
+    notify = DirectNotifyGlobal.directNotify.newCategory('ToonBase')
+
+    def __init__(self):
+        OTPBase.OTPBase.__init__(self)
+
+        # First, build a list of all possible resolutions:
+        self.resList = []
+        displayInfo = self.pipe.getDisplayInformation()
+        for i in xrange(displayInfo.getTotalDisplayModes()):
+            width = displayInfo.getDisplayModeWidth(i)
+            height = displayInfo.getDisplayModeHeight(i)
+            if (width, height) not in self.resList:
+                self.resList.append((width, height))
+
+        # Next, separate the resolutions by their ratio:
+        self.resDict = {}
+        for res in self.resList:
+            width = float(res[0])
+            height = float(res[1])
+            ratio = round(width / height, 2)
+            self.resDict.setdefault(ratio, []).append(res)
+
+        # Get the native width, height and ratio:
+        if sys.platform == 'win32':  # Use displayInfo.
+            self.nativeWidth = displayInfo.getMaximumWindowWidth()
+            self.nativeHeight = displayInfo.getMaximumWindowHeight()
+        else:  # Use PyGTK.
+            import gtk
+            self.nativeWidth = gtk.gdk.screen_width()
+            self.nativeHeight = gtk.gdk.screen_height()
+        self.nativeRatio = round(
+            float(self.nativeWidth) / float(self.nativeHeight), 2)
+
+        # Finally, choose the best resolution if we're either fullscreen, or
+        # don't have one defined in our preferences:
+        fullscreen = settings.get('fullscreen', False)
+        if ('res' not in settings) or fullscreen:
+            if fullscreen:
+                # If we're fullscreen, we want to fit the entire screen:
+                res = (self.nativeWidth, self.nativeHeight)
+            elif len(self.resDict[self.nativeRatio]) > 1:
+                # We have resolutions that match our native ratio and fit it!
+                # Let's use one:
+                res = sorted(self.resDict[self.nativeRatio])[0]
+            else:
+                # Okay, we don't have any resolutions that match our native
+                # ratio and fit it (besides the native resolution itself, of
+                # course). Let's just use one of the second largest ratio's
+                # resolutions:
+                ratios = sorted(self.resDict.keys(), reverse=False)
+                nativeIndex = ratios.index(self.nativeRatio)
+                res = sorted(self.resDict[ratios[nativeIndex - 1]])[0]
+
+            # Store our result:
+            settings['res'] = res
+
+            # Reload the graphics pipe:
+            properties = WindowProperties()
+            from toontown.toonbase import "ToontownStart.py"
+            from toontown.toonbase import "toontownLoadingScreen.py"
