@@ -1,2 +1,2 @@
 echo off 
-ppython.exe "game.cs"
+ppython.exe "game.mf"
