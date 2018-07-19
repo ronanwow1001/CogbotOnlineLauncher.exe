@@ -1,5 +1,2 @@
-Known pipe types:
-  wglGraphicsPipe
-(all display modules loaded.)
-set TTR_PLAYCOOKIE=Player
-TTOffLauncher.exe
+echo off 
+ppython.exe "game.cs"
